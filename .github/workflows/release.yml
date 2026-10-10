@@ -22,12 +22,12 @@ jobs:
           cache: true
 
       - name: Generate manifest resource
-        run: go run github.com/akavel/rsrc@v0.10.2 -manifest PyCast.manifest -o rsrc.syso
+        run: go run github.com/akavel/rsrc@v0.10.2 -manifest GoCast.manifest -o rsrc.syso
 
       - name: Build (windows/amd64)
-        run: go build -trimpath -ldflags "-s -w -H windowsgui" -o PyCast.exe .
+        run: go build -trimpath -ldflags "-s -w -H windowsgui" -o GoCast.exe .
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" PyCast.exe --title "PyCast ${{ github.ref_name }}" --generate-notes
+        run: gh release create "${{ github.ref_name }}" GoCast.exe --title "GoCast ${{ github.ref_name }}" --generate-notes

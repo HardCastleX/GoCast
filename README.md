@@ -1,14 +1,14 @@
-# PyCast (Go)
+# GoCast
 
 Transmisor de audio nativo para **SHOUTcast v2** con interfaz gráfica en Windows, reescrito 100% en **Golang**.
 
 Captura el audio del sistema (loopback WASAPI) o un micrófono, lo codifica a MP3 en tiempo real y lo envía a un servidor SHOUTcast DNAS v2 usando el **protocolo nativo SHOUTcast 2 (Ultravox 2.1)**.
 
-Compila en un único binario ejecutable (`PyCast.exe`), sin requerir Python, DLLs externas ni herramientas CGO/GCC instaladas.
+Compila en un único binario ejecutable (`GoCast.exe`), sin requerir Python, DLLs externas ni herramientas CGO/GCC instaladas.
 
 ## ¿Por qué el protocolo nativo?
 
-Los encoders clásicos que usan el protocolo SHOUTcast v1 (contraseña por el puerto +1) no pueden elegir el Stream ID en un DNAS 2.x: el audio termina montado en un stream nuevo (sid 1) y tu enlace de escucha queda "offline" aunque el encoder diga que está transmitiendo. PyCast implementa el handshake Ultravox 2.1 completo (autenticación cifrada con XTEA, negociación de stream y envío de datos encapsulado), por lo que el audio llega al Stream ID correcto en servidores multi-stream.
+Los encoders clásicos que usan el protocolo SHOUTcast v1 (contraseña por el puerto +1) no pueden elegir el Stream ID en un DNAS 2.x: el audio termina montado en un stream nuevo (sid 1) y tu enlace de escucha queda "offline" aunque el encoder diga que está transmitiendo. GoCast implementa el handshake Ultravox 2.1 completo (autenticación cifrada con XTEA, negociación de stream y envío de datos encapsulado), por lo que el audio llega al Stream ID correcto en servidores multi-stream.
 
 ## Características
 
@@ -37,17 +37,17 @@ go run .
 
 ### Compilar el binario ejecutable (.exe):
 ```powershell
-go build -o PyCast.exe .
+go build -o GoCast.exe .
 ```
 
 O para compilar como aplicación GUI sin ventana de terminal de fondo:
 ```powershell
-go build -ldflags "-H windowsgui" -o PyCast.exe .
+go build -ldflags "-H windowsgui" -o GoCast.exe .
 ```
 
-> **Importante (manifiesto):** la GUI usa la librería Walk, que requiere Common Controls 6. El manifiesto [`PyCast.manifest`](PyCast.manifest) ya está embebido en `rsrc.syso`, por lo que el build funciona directamente. Si modificas el manifiesto, regenera el recurso antes de compilar:
+> **Importante (manifiesto):** la GUI usa la librería Walk, que requiere Common Controls 6. El manifiesto [`GoCast.manifest`](GoCast.manifest) ya está embebido en `rsrc.syso`, por lo que el build funciona directamente. Si modificas el manifiesto, regenera el recurso antes de compilar:
 > ```powershell
-> go run github.com/akavel/rsrc@v0.10.2 -manifest PyCast.manifest -o rsrc.syso
+> go run github.com/akavel/rsrc@v0.10.2 -manifest GoCast.manifest -o rsrc.syso
 > ```
 > Sin el manifiesto, la ventana no se crea y el programa se cierra al instante (`TTM_ADDTOOL failed`).
 

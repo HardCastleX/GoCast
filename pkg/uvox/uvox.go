@@ -99,7 +99,7 @@ func NewUvoxSource(cfg Config) *UvoxSource {
 		cfg.Bitrate = 128
 	}
 	if cfg.Name == "" {
-		cfg.Name = "PyStreamer"
+		cfg.Name = "GoCast"
 	}
 	if cfg.Genre == "" {
 		cfg.Genre = "Variado"

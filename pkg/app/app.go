@@ -551,7 +551,7 @@ func (app *streamerApp) startStream() {
 			User:     user,
 			Password: pass,
 			Bitrate:  bitrate,
-			Name:     "PyStreamer",
+			Name:     "GoCast",
 			Genre:    "Variado",
 		}
 		source := uvox.NewUvoxSource(cfg)
