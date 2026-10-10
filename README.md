@@ -1,8 +1,10 @@
-# PyCast
+# PyCast (Go)
 
-Transmisor de audio para **SHOUTcast v2** con interfaz gráfica, escrito en Python.
+Transmisor de audio nativo para **SHOUTcast v2** con interfaz gráfica en Windows, reescrito 100% en **Golang**.
 
 Captura el audio del sistema (loopback WASAPI) o un micrófono, lo codifica a MP3 en tiempo real y lo envía a un servidor SHOUTcast DNAS v2 usando el **protocolo nativo SHOUTcast 2 (Ultravox 2.1)**.
+
+Compila en un único binario ejecutable (`PyCast.exe`), sin requerir Python, DLLs externas ni herramientas CGO/GCC instaladas.
 
 ## ¿Por qué el protocolo nativo?
 
@@ -10,46 +12,59 @@ Los encoders clásicos que usan el protocolo SHOUTcast v1 (contraseña por el pu
 
 ## Características
 
-- Protocolo SHOUTcast 2 nativo (Ultravox 2.1) con selección de Stream ID
-- Captura del audio del sistema (loopback) o micrófono, vía WASAPI *event-driven* (callbacks nativos, sin micro-cortes bajo carga)
-- MP3 a 128 / 192 / 256 / 320 kbps (a la frecuencia nativa del dispositivo), seleccionable desde la interfaz
-- VU meter estéreo en tiempo real
-- Presets de servidores (se guardan en `presets.json`, local y fuera del repositorio)
-- Cronómetro al aire y contador de datos enviados
-- Mensajes de error claros: stream ocupado por el AutoDJ, credenciales inválidas, etc.
+- **100% Go nativo (sin CGO)**: compilación directa en Windows sin necesidad de MinGW ni GCC.
+- **Protocolo SHOUTcast 2 nativo (Ultravox 2.1)** con selección de Stream ID y cifrado XTEA.
+- **Captura WASAPI en tiempo real**: loopback del sistema (altavoces/auriculares) o micrófonos/entradas con detección del dispositivo predeterminado.
+- **Inyección automática de silencio**: mantiene la conexión viva incluso cuando no hay música reproduciéndose.
+- **Codificador MP3 en Go puro**: bitrates seleccionables a 128 / 192 / 256 / 320 kbps con remuestreo automático a 48000 Hz / 44100 Hz.
+- **VU meter estéreo en tiempo real** (canales L y R).
+- **Gestión de presets**: guarda, carga y elimina configuraciones de servidores en `presets.json`.
+- **Estadísticas al aire**: cronómetro en vivo y contador de megabytes transmitidos.
+- **Manejo de errores claro**: detección de "Stream ocupado (AutoDJ)", credenciales incorrectas, SID inválido, etc.
 
 ## Requisitos
 
-- Windows con Python 3.10 o superior
-- Dependencias: `pip install -r requirements.txt`
+- Windows 10 u 11 (x64)
+- Go 1.20 o superior (solo necesario si compilas desde el código fuente)
+
+## Compilación y Ejecución
+
+### Ejecutar directamente:
+```powershell
+go run .
+```
+
+### Compilar el binario ejecutable (.exe):
+```powershell
+go build -o PyCast.exe .
+```
+
+O para compilar como aplicación GUI sin ventana de terminal de fondo:
+```powershell
+go build -ldflags "-H windowsgui" -o PyCast.exe .
+```
 
 ## Uso
 
-```
-py main.py
-```
+1. Elige el **Dispositivo de Audio** en el menú desplegable.
+2. Ingresa **Hostname or IP**, **Port**, **Stream ID (SID)**, **DJ Username** y **Password**.
+3. Selecciona el **Bitrate** deseado (ej. 256 kbps).
+4. Pulsa **Iniciar Broadcast**.
 
-1. Elige el dispositivo de audio (ver abajo).
-2. Rellena host, puerto base del servidor, Stream ID, usuario DJ y contraseña.
-3. Selecciona el bitrate y pulsa **Iniciar Broadcast**.
+### Dispositivos: `[Loopback]` vs Entradas Directas
 
-### ¿Qué dispositivo elegir? `[Loopback]` vs sin loopback
+- **Con `[Loopback]`**: Copia digital directa de lo que suena por esa salida (altavoces o audífonos). Es la opción estándar para transmitir música o el audio completo de tu PC.
+- **Sin `[Loopback]`**: Dispositivos de entrada físicos o virtuales (micrófonos, entradas de línea, cables virtuales VB-Audio).
 
-El selector muestra dos tipos de dispositivos:
+## Estructura del Proyecto en Go
 
-- **Con `[Loopback]`** — es una copia digital directa de lo que suena por esa salida (altavoces o audífonos). Es la opción normal para transmitir lo que estás escuchando en tu PC: elige el `[Loopback]` del dispositivo por donde realmente escuchas el audio. Equivale al "capturar audio del sistema" de otros encoders.
-- **Sin `[Loopback]`** — son dispositivos de entrada reales: micrófonos, "Mezcla estéreo" (el loopback analógico antiguo de Realtek, con más latencia y peor calidad) o "CABLE Output" (la salida de un cable virtual VB-Audio, útil solo si enrutas el audio a través de ese cable).
-
-En resumen: para transmitir la música de tu PC usa el `[Loopback]` de tu salida predeterminada; usa una entrada sin loopback solo si vas a transmitir un micrófono o un cable virtual.
-
-La URL para los oyentes es `http://HOST:PUERTO/stream/STREAMID/`.
-
-> **Nota:** si tu hosting usa AutoDJ, deténlo desde el panel antes de conectar; mientras esté activo el servidor rechaza cualquier fuente en vivo con "stream ocupado".
-
-## Estructura
-
-- `main.py` — interfaz gráfica (customtkinter), captura de audio y encoding MP3
-- `uvox.py` — implementación del protocolo Ultravox 2.1: framing de mensajes, cifrado XTEA, handshake de autenticación/configuración y envío de audio
+- [main.go](main.go) / [cmd/pycast/main.go](cmd/pycast/main.go) — Interfaz gráfica Win32 nativa (Walk) y bucle de streaming
+- [pkg/uvox/](pkg/uvox/) — Implementación completa del protocolo Ultravox 2.1 (framing, cifrado XTEA, handshake y envío MP3)
+- [pkg/mp3/](pkg/mp3/) — Codificador MP3 en Go puro para streaming en tiempo real (capas MDCT, subband, Huffman, reservoir)
+- [pkg/audio/](pkg/audio/) — Captura de audio WASAPI (loopback y micrófonos), remuestreo y cálculo de picos VU
+- [pkg/presets/](pkg/presets/) — Gestor persistente de servidores en `presets.json`
+- [cmd/test_encode/](cmd/test_encode/) — Herramienta de prueba de captura y codificación MP3
+- [cmd/test_sc/](cmd/test_sc/) — Herramienta de prueba de dispositivos de sonido
 
 ## Licencia
 
