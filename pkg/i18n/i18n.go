@@ -76,6 +76,25 @@ func T(key string) string {
 	return key
 }
 
+// TFor returns the translation of key for a specific language, falling back to
+// English and finally to the key itself. It is used when the language to render
+// is not the active one (e.g. the startup language chooser).
+func TFor(lang, key string) string {
+	mu.RLock()
+	defer mu.RUnlock()
+	if m, ok := messages[lang]; ok {
+		if v, ok := m[key]; ok {
+			return v
+		}
+	}
+	if m, ok := messages[English]; ok {
+		if v, ok := m[key]; ok {
+			return v
+		}
+	}
+	return key
+}
+
 // Error carries a translation key plus an optional technical detail. Libraries
 // return it so the UI can render it in the active language without hardcoding
 // user-facing text.

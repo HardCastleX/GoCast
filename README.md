@@ -65,7 +65,7 @@ go build -ldflags "-H windowsgui" -o PyCast.exe .
 
 ## Idiomas
 
-La interfaz está disponible en **inglés** (idioma por defecto) y **español**. Al iniciar la aplicación se abre una **ventana independiente de selección de idioma** (cuyo texto está siempre en inglés); lo que elijas define el idioma de toda la app y se guarda en `config.json`, así que se recuerda en las siguientes ejecuciones.
+La interfaz está disponible en **inglés** (idioma por defecto) y **español**. Al iniciar la aplicación se abre una **ventana independiente de selección de idioma**, cuyo texto se muestra en el idioma del sistema (español si tu Windows está en español, inglés en cualquier otro caso). Lo que elijas define el idioma de toda la app y se guarda en `config.json`, así que se recuerda en las siguientes ejecuciones; si cierras esa ventana (X / Alt+F4), la aplicación no arranca.
 
 Las traducciones viven en [pkg/i18n/](pkg/i18n/) (`en.json`, `es.json`) y se **embeben dentro del `.exe`** con `//go:embed`, por lo que el binario sigue siendo autónomo. El inglés es el idioma base: cualquier clave que falte en español cae automáticamente al inglés.
 

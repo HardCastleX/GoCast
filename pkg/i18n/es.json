@@ -2,6 +2,10 @@
   "app.title": "Shoutcast v2 Streamer (Go)",
   "app.heading": "Shoutcast v2 Streamer",
 
+  "lang.title": "Idioma",
+  "lang.prompt": "Selecciona el idioma:",
+  "lang.continue": "Continuar",
+
   "label.audio_device": "Dispositivo de Audio:",
   "label.server_presets": "Presets de Servidor:",
   "label.host": "Hostname or IP:",

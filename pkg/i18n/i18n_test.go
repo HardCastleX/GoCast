@@ -37,3 +37,23 @@ func TestSetLanguageIgnoresUnknown(t *testing.T) {
 		t.Fatalf("expected %q, got %q", English, Current())
 	}
 }
+
+func TestTForTranslatesRequestedLanguage(t *testing.T) {
+	if got, want := TFor(Spanish, "lang.prompt"), messages[Spanish]["lang.prompt"]; got != want {
+		t.Fatalf("TFor(es) = %q, want %q", got, want)
+	}
+	if got, want := TFor(English, "lang.prompt"), messages[English]["lang.prompt"]; got != want {
+		t.Fatalf("TFor(en) = %q, want %q", got, want)
+	}
+	if got, want := TFor("fr", "lang.prompt"), messages[English]["lang.prompt"]; got != want {
+		t.Fatalf("TFor fallback = %q, want %q", got, want)
+	}
+}
+
+func TestSystemLanguage(t *testing.T) {
+	lang := SystemLanguage()
+	if lang != English && lang != Spanish {
+		t.Fatalf("unexpected system language %q", lang)
+	}
+	t.Logf("detected system language: %q", lang)
+}

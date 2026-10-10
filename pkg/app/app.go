@@ -107,7 +107,10 @@ func Run() {
 	}
 	i18n.SetLanguage(initial)
 
-	chosen := showLanguageDialog()
+	chosen, ok := showLanguageDialog()
+	if !ok {
+		return
+	}
 	if chosen != cfgMgr.Language() {
 		_ = cfgMgr.SetLanguage(chosen)
 	}
@@ -124,22 +127,25 @@ func Run() {
 	app.runUI()
 }
 
-// showLanguageDialog presents the standalone language chooser shown at startup
-// and returns the selected language code. Its text is always in English.
-func showLanguageDialog() string {
+// showLanguageDialog presents the standalone language chooser shown at startup.
+// Its wording follows the detected system language (English fallback); the
+// second result is false when the user closes the window (X / Alt+F4) instead
+// of confirming, which aborts startup.
+func showLanguageDialog() (string, bool) {
 	var dlg *walk.Dialog
 	var cb *walk.ComboBox
 	var acceptPB *walk.PushButton
 	chosen := i18n.Current()
+	prompt := i18n.SystemLanguage()
 
-	_, _ = Dialog{
+	result, _ := Dialog{
 		AssignTo:      &dlg,
-		Title:         "Language",
+		Title:         i18n.TFor(prompt, "lang.title"),
 		MinSize:       Size{Width: 320, Height: 140},
 		DefaultButton: &acceptPB,
 		Layout:        VBox{Margins: Margins{Left: 15, Top: 15, Right: 15, Bottom: 15}, Spacing: 10},
 		Children: []Widget{
-			Label{Text: "Select language:"},
+			Label{Text: i18n.TFor(prompt, "lang.prompt")},
 			ComboBox{
 				AssignTo:     &cb,
 				Model:        languageLabels(),
@@ -152,7 +158,7 @@ func showLanguageDialog() string {
 					HSpacer{},
 					PushButton{
 						AssignTo: &acceptPB,
-						Text:     "Continue",
+						Text:     i18n.TFor(prompt, "lang.continue"),
 						OnClicked: func() {
 							if idx := cb.CurrentIndex(); idx >= 0 && idx < len(languages) {
 								chosen = languages[idx].code
@@ -165,7 +171,10 @@ func showLanguageDialog() string {
 		},
 	}.Run(nil)
 
-	return chosen
+	if result != walk.DlgCmdOK {
+		return "", false
+	}
+	return chosen, true
 }
 
 func (app *streamerApp) initDevices() {
