@@ -38,3 +38,27 @@ func TestStreamEncoder(t *testing.T) {
 		}
 	}
 }
+
+// BenchmarkStreamEncoder exercises the encoding hot path; its CPU profile is
+// used as the PGO profile (default.pgo).
+func BenchmarkStreamEncoder(b *testing.B) {
+	enc, err := NewStreamEncoder(48000, 2, 256)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	// ~100ms of stereo audio per iteration.
+	const frames = 4800
+	pcm := make([]int16, frames*2)
+	for i := 0; i < frames; i++ {
+		val := int16(math.Sin(2*math.Pi*440.0*float64(i)/48000.0) * 16000.0)
+		pcm[i*2] = val
+		pcm[i*2+1] = val
+	}
+
+	b.SetBytes(int64(len(pcm) * 2))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		enc.Encode(pcm)
+	}
+}

@@ -39,3 +39,26 @@ func TestResampleStereo(t *testing.T) {
 		t.Fatalf("expected %d resampled frames, got %d", expectedFrames, len(resampled)/2)
 	}
 }
+
+func TestCapturerBufferPool(t *testing.T) {
+	c := NewCapturer()
+
+	b := c.getBuf(100)
+	if len(b) != 100 {
+		t.Fatalf("getBuf(100) len = %d, want 100", len(b))
+	}
+	if cap(b) < 100 {
+		t.Fatalf("getBuf(100) cap = %d, want >= 100", cap(b))
+	}
+
+	// A buffer obtained after releasing one must still be usable.
+	c.Release(b)
+	b2 := c.getBuf(50)
+	if len(b2) != 50 {
+		t.Fatalf("getBuf(50) len = %d, want 50", len(b2))
+	}
+
+	// Releasing nil or empty buffers must be a safe no-op.
+	c.Release(nil)
+	c.Release([]int16{})
+}

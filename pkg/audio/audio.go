@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-ole/go-ole"
 	"github.com/moutend/go-wca/pkg/wca"
+	"golang.org/x/sys/windows"
 
 	"pycast/pkg/i18n"
 )
@@ -19,6 +20,9 @@ const (
 	FormatPCM        uint16 = 0x0001
 	FormatIEEEFloat  uint16 = 0x0003
 	FormatExtensible uint16 = 0xFFFE
+
+	// captureWaitMs bounds how long the capture loop blocks on the WASAPI event.
+	captureWaitMs uint32 = 100
 )
 
 // Device represents an available audio input/output device.
@@ -137,13 +141,34 @@ type Capturer struct {
 	cancelFunc context.CancelFunc
 	running    bool
 	targetRate int
+
+	pool sync.Pool
 }
 
 // NewCapturer creates a new Capturer.
 func NewCapturer() *Capturer {
-	return &Capturer{
-		targetRate: 48000,
+	c := &Capturer{targetRate: 48000}
+	c.pool.New = func() any { return make([]int16, 0, 4096) }
+	return c
+}
+
+// getBuf returns a stereo PCM buffer of length n, reusing memory from the pool.
+func (c *Capturer) getBuf(n int) []int16 {
+	if v := c.pool.Get(); v != nil {
+		if b := v.([]int16); cap(b) >= n {
+			return b[:n]
+		}
 	}
+	return make([]int16, n)
+}
+
+// Release returns a buffer obtained from the Capturer to the pool. The buffer
+// must not be used afterwards.
+func (c *Capturer) Release(buf []int16) {
+	if cap(buf) == 0 {
+		return
+	}
+	c.pool.Put(buf[:0])
 }
 
 // TargetSampleRate returns the output sample rate (e.g. 48000).
@@ -266,17 +291,19 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 	c.targetRate = targetRate
 	c.mu.Unlock()
 
-	var defaultPeriod wca.REFERENCE_TIME
-	var minimumPeriod wca.REFERENCE_TIME
-	_ = ac.GetDevicePeriod(&defaultPeriod, &minimumPeriod)
-	latency := time.Duration(int(defaultPeriod) * 100)
-	if latency < 10*time.Millisecond {
-		latency = 20 * time.Millisecond
+	// Event-driven capture: WASAPI signals this event whenever a packet is ready.
+	event, err := windows.CreateEvent(nil, 0, 0, nil)
+	if err != nil {
+		if onError != nil {
+			onError(i18n.NewError("audio.event_setup", err.Error()))
+		}
+		return
 	}
+	defer windows.CloseHandle(event)
 
-	streamFlags := uint32(0)
+	streamFlags := uint32(wca.AUDCLNT_STREAMFLAGS_EVENTCALLBACK)
 	if dev.IsLoopback {
-		streamFlags = wca.AUDCLNT_STREAMFLAGS_LOOPBACK
+		streamFlags |= wca.AUDCLNT_STREAMFLAGS_LOOPBACK
 	}
 
 	// 200ms buffer size
@@ -284,6 +311,13 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 	if err := ac.Initialize(wca.AUDCLNT_SHAREMODE_SHARED, streamFlags, bufferDuration, 0, wfx, nil); err != nil {
 		if onError != nil {
 			onError(i18n.NewError("audio.init_wasapi", err.Error()))
+		}
+		return
+	}
+
+	if err := ac.SetEventHandle(uintptr(event)); err != nil {
+		if onError != nil {
+			onError(i18n.NewError("audio.event_setup", err.Error()))
 		}
 		return
 	}
@@ -314,11 +348,7 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 	var qcpPos uint64
 
 	lastVU := time.Now()
-	lastDataTime := time.Now()
-	sleepInterval := latency / 2
-	if sleepInterval < 5*time.Millisecond {
-		sleepInterval = 5 * time.Millisecond
-	}
+	silenceFrames := targetRate / 10
 
 	for {
 		select {
@@ -327,147 +357,147 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 		default:
 		}
 
-		if err := acc.GetBuffer(&data, &availableFrames, &flags, &devPos, &qcpPos); err != nil {
-			time.Sleep(sleepInterval)
-			continue
-		}
-
-		if availableFrames == 0 {
-			if time.Since(lastDataTime) >= 100*time.Millisecond {
-				lastDataTime = time.Now()
-				// Inject 100ms of silence
-				silenceFrames := targetRate / 10
-				pcmSilent := make([]int16, silenceFrames*2)
-				if onData != nil {
-					onData(pcmSilent, 0, 0)
-				}
-			}
-			time.Sleep(sleepInterval)
-			continue
-		}
-		lastDataTime = time.Now()
-
-		isSilent := (flags & wca.AUDCLNT_BUFFERFLAGS_SILENT) != 0
-		numFrames := int(availableFrames)
-
-		// Convert captured frames into 16-bit stereo PCM (L, R)
-		pcmStereo := make([]int16, numFrames*2)
-		var peakL, peakR float32
-
-		if isSilent {
-			// All zeros
-			peakL = 0
-			peakR = 0
-		} else {
-			rawBytes := unsafe.Slice(data, numFrames*blockAlign)
-
-			for i := 0; i < numFrames; i++ {
-				frameOffset := i * blockAlign
-				var sampleL, sampleR float32
-
-				if isFloat {
-					// 32-bit float
-					fL := *(*float32)(unsafe.Pointer(&rawBytes[frameOffset]))
-					sampleL = clampF32(fL, -1.0, 1.0)
-					if inChannels > 1 {
-						fR := *(*float32)(unsafe.Pointer(&rawBytes[frameOffset+4]))
-						sampleR = clampF32(fR, -1.0, 1.0)
-					} else {
-						sampleR = sampleL
-					}
-				} else if bitsPerSample == 16 {
-					// 16-bit int
-					iL := *(*int16)(unsafe.Pointer(&rawBytes[frameOffset]))
-					sampleL = float32(iL) / 32768.0
-					if inChannels > 1 {
-						iR := *(*int16)(unsafe.Pointer(&rawBytes[frameOffset+2]))
-						sampleR = float32(iR) / 32768.0
-					} else {
-						sampleR = sampleL
-					}
-				} else if bitsPerSample == 24 {
-					// 24-bit int
-					b0 := rawBytes[frameOffset]
-					b1 := rawBytes[frameOffset+1]
-					b2 := rawBytes[frameOffset+2]
-					valL := int32(b0) | (int32(b1) << 8) | (int32(int8(b2)) << 16)
-					sampleL = float32(valL) / 8388608.0
-
-					if inChannels > 1 {
-						b0r := rawBytes[frameOffset+3]
-						b1r := rawBytes[frameOffset+4]
-						b2r := rawBytes[frameOffset+5]
-						valR := int32(b0r) | (int32(b1r) << 8) | (int32(int8(b2r)) << 16)
-						sampleR = float32(valR) / 8388608.0
-					} else {
-						sampleR = sampleL
-					}
-				}
-
-				int16L := int16(sampleL * 32767.0)
-				int16R := int16(sampleR * 32767.0)
-				pcmStereo[i*2] = int16L
-				pcmStereo[i*2+1] = int16R
-
-				absL := float32(math.Abs(float64(sampleL)))
-				absR := float32(math.Abs(float64(sampleR)))
-				if absL > peakL {
-					peakL = absL
-				}
-				if absR > peakR {
-					peakR = absR
-				}
-			}
-		}
-
-		_ = acc.ReleaseBuffer(availableFrames)
-
-		// Resample if necessary (e.g. 96kHz to 48kHz or 88.2kHz to 44.1kHz)
-		outPCM := pcmStereo
-		if inRate != targetRate {
-			outPCM = resampleStereo(pcmStereo, inRate, targetRate)
-		}
-
-		// Calculate VU peak with boost like Python (min(1.0, peak * 1.5))
-		scaledL := peakL * 1.5
-		if scaledL > 1.0 {
-			scaledL = 1.0
-		}
-		scaledR := peakR * 1.5
-		if scaledR > 1.0 {
-			scaledR = 1.0
-		}
-
-		now := time.Now()
-		if now.Sub(lastVU) >= 40*time.Millisecond {
-			lastVU = now
+		// Block until WASAPI has a packet ready. On timeout the device is idle,
+		// so emit silence to keep the stream (and the VU meter) alive.
+		status, _ := windows.WaitForSingleObject(event, captureWaitMs)
+		if status == uint32(windows.WAIT_TIMEOUT) {
 			if onData != nil {
+				silence := c.getBuf(silenceFrames * 2)
+				clear(silence)
+				onData(silence, 0, 0)
+			}
+			continue
+		}
+
+		// Drain every queued packet before waiting on the event again.
+		for {
+			if err := acc.GetBuffer(&data, &availableFrames, &flags, &devPos, &qcpPos); err != nil {
+				break // AUDCLNT_S_BUFFER_EMPTY: nothing left to read
+			}
+			if availableFrames == 0 {
+				break
+			}
+
+			isSilent := (flags & wca.AUDCLNT_BUFFERFLAGS_SILENT) != 0
+			numFrames := int(availableFrames)
+
+			// Convert captured frames into 16-bit stereo PCM (L, R)
+			pcmStereo := c.getBuf(numFrames * 2)
+			var peakL, peakR float32
+
+			if isSilent {
+				clear(pcmStereo)
+			} else {
+				rawBytes := unsafe.Slice(data, numFrames*blockAlign)
+
+				for i := 0; i < numFrames; i++ {
+					frameOffset := i * blockAlign
+					var sampleL, sampleR float32
+
+					if isFloat {
+						// 32-bit float
+						fL := *(*float32)(unsafe.Pointer(&rawBytes[frameOffset]))
+						sampleL = clampF32(fL, -1.0, 1.0)
+						if inChannels > 1 {
+							fR := *(*float32)(unsafe.Pointer(&rawBytes[frameOffset+4]))
+							sampleR = clampF32(fR, -1.0, 1.0)
+						} else {
+							sampleR = sampleL
+						}
+					} else if bitsPerSample == 16 {
+						// 16-bit int
+						iL := *(*int16)(unsafe.Pointer(&rawBytes[frameOffset]))
+						sampleL = float32(iL) / 32768.0
+						if inChannels > 1 {
+							iR := *(*int16)(unsafe.Pointer(&rawBytes[frameOffset+2]))
+							sampleR = float32(iR) / 32768.0
+						} else {
+							sampleR = sampleL
+						}
+					} else if bitsPerSample == 24 {
+						// 24-bit int
+						b0 := rawBytes[frameOffset]
+						b1 := rawBytes[frameOffset+1]
+						b2 := rawBytes[frameOffset+2]
+						valL := int32(b0) | (int32(b1) << 8) | (int32(int8(b2)) << 16)
+						sampleL = float32(valL) / 8388608.0
+
+						if inChannels > 1 {
+							b0r := rawBytes[frameOffset+3]
+							b1r := rawBytes[frameOffset+4]
+							b2r := rawBytes[frameOffset+5]
+							valR := int32(b0r) | (int32(b1r) << 8) | (int32(int8(b2r)) << 16)
+							sampleR = float32(valR) / 8388608.0
+						} else {
+							sampleR = sampleL
+						}
+					}
+
+					pcmStereo[i*2] = int16(sampleL * 32767.0)
+					pcmStereo[i*2+1] = int16(sampleR * 32767.0)
+
+					absL := float32(math.Abs(float64(sampleL)))
+					absR := float32(math.Abs(float64(sampleR)))
+					if absL > peakL {
+						peakL = absL
+					}
+					if absR > peakR {
+						peakR = absR
+					}
+				}
+			}
+
+			_ = acc.ReleaseBuffer(availableFrames)
+
+			// Resample if necessary (e.g. 96kHz to 48kHz or 88.2kHz to 44.1kHz)
+			outPCM := pcmStereo
+			if inRate != targetRate {
+				outFrames := int(int64(numFrames) * int64(targetRate) / int64(inRate))
+				if outFrames > 0 {
+					dst := c.getBuf(outFrames * 2)
+					resampleStereoInto(dst, pcmStereo, inRate, targetRate)
+					c.Release(pcmStereo)
+					outPCM = dst
+				}
+			}
+
+			if onData == nil {
+				c.Release(outPCM)
+				continue
+			}
+
+			// Calculate VU peak with boost like Python (min(1.0, peak * 1.5))
+			scaledL := peakL * 1.5
+			if scaledL > 1.0 {
+				scaledL = 1.0
+			}
+			scaledR := peakR * 1.5
+			if scaledR > 1.0 {
+				scaledR = 1.0
+			}
+
+			now := time.Now()
+			if now.Sub(lastVU) >= 40*time.Millisecond {
+				lastVU = now
 				onData(outPCM, scaledL, scaledR)
-			}
-		} else {
-			if onData != nil {
-				onData(outPCM, -1, -1) // -1 indicates don't update VU on this small tick
+			} else {
+				onData(outPCM, -1, -1) // -1: don't update VU on this tick
 			}
 		}
-
-		time.Sleep(sleepInterval)
 	}
 }
 
-// resampleStereo performs linear interpolation resampling for stereo 16-bit PCM.
-func resampleStereo(input []int16, inRate, outRate int) []int16 {
-	if inRate == outRate || len(input) < 2 {
-		return input
-	}
+// resampleStereoInto writes the linearly resampled stereo input into dst, whose
+// length must be outFrames*2. It performs no allocation.
+func resampleStereoInto(dst, input []int16, inRate, outRate int) {
 	inFrames := len(input) / 2
-	outFrames := int(int64(inFrames) * int64(outRate) / int64(inRate))
-	if outFrames <= 0 {
-		return nil
+	outFrames := len(dst) / 2
+	if inRate == outRate || inFrames < 2 || outFrames <= 0 {
+		copy(dst, input)
+		return
 	}
 
 	ratio := float64(inFrames-1) / float64(outFrames)
-	output := make([]int16, outFrames*2)
-
 	for i := 0; i < outFrames; i++ {
 		srcPos := float64(i) * ratio
 		srcIdx := int(srcPos)
@@ -479,12 +509,27 @@ func resampleStereo(input []int16, inRate, outRate int) []int16 {
 			r0 := float64(input[srcIdx*2+1])
 			r1 := float64(input[(srcIdx+1)*2+1])
 
-			output[i*2] = int16(l0 + frac*(l1-l0))
-			output[i*2+1] = int16(r0 + frac*(r1-r0))
+			dst[i*2] = int16(l0 + frac*(l1-l0))
+			dst[i*2+1] = int16(r0 + frac*(r1-r0))
 		} else {
-			output[i*2] = input[srcIdx*2]
-			output[i*2+1] = input[srcIdx*2+1]
+			dst[i*2] = input[srcIdx*2]
+			dst[i*2+1] = input[srcIdx*2+1]
 		}
 	}
+}
+
+// resampleStereo performs linear interpolation resampling for stereo 16-bit PCM,
+// allocating the output buffer.
+func resampleStereo(input []int16, inRate, outRate int) []int16 {
+	if inRate == outRate || len(input) < 2 {
+		return input
+	}
+	inFrames := len(input) / 2
+	outFrames := int(int64(inFrames) * int64(outRate) / int64(inRate))
+	if outFrames <= 0 {
+		return nil
+	}
+	output := make([]int16, outFrames*2)
+	resampleStereoInto(output, input, inRate, outRate)
 	return output
 }

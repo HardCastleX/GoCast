@@ -99,6 +99,8 @@ type streamerApp struct {
 // Run shows the startup language chooser, then builds the main UI. English is
 // the default; the chosen language is remembered in config.json.
 func Run() {
+	defer startProfiling()()
+
 	cfgMgr := config.NewManager("config.json")
 
 	initial := cfgMgr.Language()
@@ -407,10 +409,23 @@ func (app *streamerApp) startCapture(dev audio.Device) {
 		if app.state == stateLive && len(pcmData) > 0 {
 			select {
 			case app.audioChan <- pcmData:
+				return // pooled buffer ownership passes to the stream loop
 			default:
-				// Buffer full, drop oldest
+			}
+			// Queue full: drop the oldest packet to keep latency low.
+			select {
+			case old := <-app.audioChan:
+				app.capturer.Release(old)
+			default:
+			}
+			select {
+			case app.audioChan <- pcmData:
+				return
+			default:
 			}
 		}
+
+		app.capturer.Release(pcmData)
 	}, func(err error) {
 		if app.mw != nil {
 			app.mw.Synchronize(func() {
@@ -584,9 +599,9 @@ func (app *streamerApp) startStream() {
 			app.btnConnect.SetEnabled(true)
 		})
 
-		// Drain any leftover buffered packets
+		// Drain any leftover buffered packets, returning their buffers to the pool.
 		for len(app.audioChan) > 0 {
-			<-app.audioChan
+			app.capturer.Release(<-app.audioChan)
 		}
 
 		// 0.5s silence frame
@@ -594,18 +609,26 @@ func (app *streamerApp) startStream() {
 
 		for !app.shouldStop && app.state == stateLive {
 			var pcmData []int16
+			pooled := true
 			select {
 			case data := <-app.audioChan:
 				pcmData = data
 			case <-time.After(500 * time.Millisecond):
 				pcmData = silentPCM
+				pooled = false
 			}
 
 			if app.shouldStop {
+				if pooled {
+					app.capturer.Release(pcmData)
+				}
 				break
 			}
 
 			mp3Bytes := encoder.Encode(pcmData)
+			if pooled {
+				app.capturer.Release(pcmData)
+			}
 			if len(mp3Bytes) > 0 {
 				if err := source.SendAudio(mp3Bytes); err != nil {
 					if !app.shouldStop {

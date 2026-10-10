@@ -58,6 +58,7 @@
   "audio.activate_client": "Could not activate the audio client",
   "audio.mix_format": "Could not read the audio format",
   "audio.init_wasapi": "Could not initialize WASAPI",
+  "audio.event_setup": "Could not set up audio events",
   "audio.capture_client": "Could not create the capture client",
   "audio.start_capture": "Could not start audio capture"
 }

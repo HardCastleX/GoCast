@@ -242,13 +242,20 @@ func (s *StreamEncoder) Encode(samples []int16) []byte {
 	s.remainder = append(s.remainder, samples...)
 	frameSamples := int(s.enc.samplesPerPass()) * int(s.enc.Wave.Channels)
 	var out []byte
-	for len(s.remainder) >= frameSamples {
-		chunk := s.remainder[:frameSamples]
+	consumed := 0
+	for len(s.remainder)-consumed >= frameSamples {
+		chunk := s.remainder[consumed : consumed+frameSamples]
 		buf, n := s.enc.EncodeBufferInterleaved(chunk)
 		if n > 0 {
 			out = append(out, buf[:n]...)
 		}
-		s.remainder = s.remainder[frameSamples:]
+		consumed += frameSamples
+	}
+	if consumed > 0 {
+		// Compact the leftover to the front of the same backing array instead of
+		// reslicing forward, which would keep reallocating under load.
+		leftover := copy(s.remainder, s.remainder[consumed:])
+		s.remainder = s.remainder[:leftover]
 	}
 	return out
 }
@@ -270,4 +277,3 @@ func (s *StreamEncoder) Flush() []byte {
 	}
 	return nil
 }
-

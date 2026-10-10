@@ -51,6 +51,31 @@ go build -ldflags "-H windowsgui" -o GoCast.exe .
 > ```
 > Sin el manifiesto, la ventana no se crea y el programa se cierra al instante (`TTM_ADDTOOL failed`).
 
+## Rendimiento
+
+La captura de audio es **event-driven** (WASAPI `EventCallback` + `WaitForSingleObject`), no polling, y los buffers PCM se reutilizan con un `sync.Pool` para no generar basura en el camino de tiempo real.
+
+### Perfilado (opcional)
+
+El binario normal **no** incluye `pprof`. Para perfilar, compila con el tag `pprof`:
+
+```powershell
+go build -tags pprof -ldflags "-H windowsgui" -o GoCast.exe .
+$env:GOCAST_PPROF_ADDR = ":6060"        # sirve net/http/pprof
+$env:GOCAST_CPU_PROFILE = "cpu.pprof"   # escribe un perfil de CPU al salir
+.\GoCast.exe
+```
+
+Luego: `go tool pprof http://localhost:6060/debug/pprof/profile` o `go tool pprof GoCast.exe cpu.pprof`.
+
+### Optimización guiada por perfil (PGO)
+
+El repo incluye [`default.pgo`](default.pgo), generado con el benchmark del codificador. Go lo aplica automáticamente al compilar el paquete raíz (también en CI). Para regenerarlo tras tocar el codificador:
+
+```powershell
+go test -run "^$" -bench BenchmarkStreamEncoder -benchtime 2s -cpuprofile default.pgo ./pkg/mp3
+```
+
 ## Uso
 
 1. Elige el **Dispositivo de Audio** en el menú desplegable.
