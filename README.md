@@ -21,7 +21,7 @@ Los encoders clásicos que usan el protocolo SHOUTcast v1 (contraseña por el pu
 - **Gestión de presets**: guarda, carga y elimina configuraciones de servidores en `presets.json`.
 - **Estadísticas al aire**: cronómetro en vivo y contador de megabytes transmitidos.
 - **Manejo de errores claro**: detección de "Stream ocupado (AutoDJ)", credenciales incorrectas, SID inválido, etc.
-- **Interfaz multiidioma**: inglés (por defecto) y español, con cambio en vivo y preferencia guardada en `config.json`.
+- **Interfaz multiidioma**: inglés (por defecto) y español, con selector de idioma al iniciar y preferencia guardada en `config.json`.
 
 ## Requisitos
 
@@ -65,7 +65,7 @@ go build -ldflags "-H windowsgui" -o PyCast.exe .
 
 ## Idiomas
 
-La interfaz está disponible en **inglés** (idioma por defecto) y **español**. Cámbialo con el selector **Language / Idioma** en la parte superior de la ventana: se aplica al instante y se guarda en `config.json`, así que se recuerda entre ejecuciones.
+La interfaz está disponible en **inglés** (idioma por defecto) y **español**. Al iniciar la aplicación se abre una **ventana independiente de selección de idioma** (cuyo texto está siempre en inglés); lo que elijas define el idioma de toda la app y se guarda en `config.json`, así que se recuerda en las siguientes ejecuciones.
 
 Las traducciones viven en [pkg/i18n/](pkg/i18n/) (`en.json`, `es.json`) y se **embeben dentro del `.exe`** con `//go:embed`, por lo que el binario sigue siendo autónomo. El inglés es el idioma base: cualquier clave que falte en español cae automáticamente al inglés.
 

@@ -1,6 +1,9 @@
 # Credenciales de servidores (nunca subir)
 presets.json
 
+# Preferencias locales del usuario
+config.json
+
 # Python
 __pycache__/
 *.pyc

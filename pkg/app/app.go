@@ -56,8 +56,6 @@ type streamerApp struct {
 	mw *walk.MainWindow
 
 	lblHeading *walk.Label
-	lblLang    *walk.Label
-	cbLang     *walk.ComboBox
 	lblDevice  *walk.Label
 	cbDevice   *walk.ComboBox
 	lblPresets *walk.Label
@@ -87,7 +85,6 @@ type streamerApp struct {
 	deviceNames []string
 	capturer    *audio.Capturer
 	presetMgr   *presets.Manager
-	cfgMgr      *config.Manager
 	presetNames []string
 
 	state      connState
@@ -99,22 +96,76 @@ type streamerApp struct {
 	source     *uvox.UvoxSource
 }
 
-// Run builds the UI and blocks on the message loop. English is the default
-// language; a saved preference (config.json) overrides it.
+// Run shows the startup language chooser, then builds the main UI. English is
+// the default; the chosen language is remembered in config.json.
 func Run() {
 	cfgMgr := config.NewManager("config.json")
-	i18n.SetLanguage(cfgMgr.Language())
+
+	initial := cfgMgr.Language()
+	if initial == "" {
+		initial = i18n.English
+	}
+	i18n.SetLanguage(initial)
+
+	chosen := showLanguageDialog()
+	if chosen != cfgMgr.Language() {
+		_ = cfgMgr.SetLanguage(chosen)
+	}
+	i18n.SetLanguage(chosen)
 
 	app := &streamerApp{
 		capturer:  audio.NewCapturer(),
 		presetMgr: presets.NewManager("presets.json"),
-		cfgMgr:    cfgMgr,
 		audioChan: make(chan []int16, 100),
 		bitrate:   256,
 	}
 
 	app.initDevices()
 	app.runUI()
+}
+
+// showLanguageDialog presents the standalone language chooser shown at startup
+// and returns the selected language code. Its text is always in English.
+func showLanguageDialog() string {
+	var dlg *walk.Dialog
+	var cb *walk.ComboBox
+	var acceptPB *walk.PushButton
+	chosen := i18n.Current()
+
+	_, _ = Dialog{
+		AssignTo:      &dlg,
+		Title:         "Language",
+		MinSize:       Size{Width: 320, Height: 140},
+		DefaultButton: &acceptPB,
+		Layout:        VBox{Margins: Margins{Left: 15, Top: 15, Right: 15, Bottom: 15}, Spacing: 10},
+		Children: []Widget{
+			Label{Text: "Select language:"},
+			ComboBox{
+				AssignTo:     &cb,
+				Model:        languageLabels(),
+				CurrentIndex: currentLanguageIndex(),
+				MinSize:      Size{Width: 180, Height: 0},
+			},
+			Composite{
+				Layout: HBox{MarginsZero: true, Spacing: 5},
+				Children: []Widget{
+					HSpacer{},
+					PushButton{
+						AssignTo: &acceptPB,
+						Text:     "Continue",
+						OnClicked: func() {
+							if idx := cb.CurrentIndex(); idx >= 0 && idx < len(languages) {
+								chosen = languages[idx].code
+							}
+							dlg.Accept()
+						},
+					},
+				},
+			},
+		},
+	}.Run(nil)
+
+	return chosen
 }
 
 func (app *streamerApp) initDevices() {
@@ -160,25 +211,10 @@ func (app *streamerApp) runUI() {
 	err := MainWindow{
 		AssignTo: &app.mw,
 		Title:    i18n.T("app.title"),
-		MinSize:  Size{Width: 440, Height: 720},
-		Size:     Size{Width: 450, Height: 740},
+		MinSize:  Size{Width: 440, Height: 680},
+		Size:     Size{Width: 450, Height: 700},
 		Layout:   VBox{Margins: Margins{Left: 20, Top: 15, Right: 20, Bottom: 15}, Spacing: 8},
 		Children: []Widget{
-			// Language selector
-			Composite{
-				Layout: HBox{MarginsZero: true},
-				Children: []Widget{
-					Label{AssignTo: &app.lblLang, Text: i18n.T("label.language")},
-					HSpacer{},
-					ComboBox{
-						AssignTo:     &app.cbLang,
-						Model:        languageLabels(),
-						CurrentIndex: currentLanguageIndex(),
-						MinSize:      Size{Width: 120, Height: 0},
-					},
-				},
-			},
-
 			// Title
 			Label{
 				AssignTo: &app.lblHeading,
@@ -310,9 +346,6 @@ func (app *streamerApp) runUI() {
 		return
 	}
 
-	// Attach after creation so it never fires while widgets are still nil.
-	app.cbLang.CurrentIndexChanged().Attach(app.onLanguageChanged)
-
 	if len(app.devices) > 0 {
 		app.startCapture(app.devices[defaultDevIdx])
 	}
@@ -320,39 +353,6 @@ func (app *streamerApp) runUI() {
 	go app.statsLoop()
 
 	app.mw.Run()
-}
-
-// applyLanguage re-renders every translated text in the active language.
-func (app *streamerApp) applyLanguage() {
-	_ = app.mw.SetTitle(i18n.T("app.title"))
-	app.lblHeading.SetText(i18n.T("app.heading"))
-	app.lblLang.SetText(i18n.T("label.language"))
-	app.lblDevice.SetText(i18n.T("label.audio_device"))
-	app.lblPresets.SetText(i18n.T("label.server_presets"))
-	app.btnSave.SetText(i18n.T("btn.save"))
-	app.btnDel.SetText(i18n.T("btn.delete"))
-	app.lblHost.SetText(i18n.T("label.host"))
-	app.lblPort.SetText(i18n.T("label.port"))
-	app.lblSID.SetText(i18n.T("label.sid"))
-	app.lblUser.SetText(i18n.T("label.username"))
-	app.lblPass.SetText(i18n.T("label.password"))
-	app.lblBitrate.SetText(i18n.T("label.bitrate"))
-	app.lblVU.SetText(i18n.T("label.vu_meter"))
-
-	_ = app.cbPresets.SetModel(app.refreshPresetOptions())
-	_ = app.cbPresets.SetCurrentIndex(0)
-
-	app.updateStatusText()
-}
-
-func (app *streamerApp) onLanguageChanged() {
-	idx := app.cbLang.CurrentIndex()
-	if idx < 0 || idx >= len(languages) {
-		return
-	}
-	i18n.SetLanguage(languages[idx].code)
-	_ = app.cfgMgr.SetLanguage(languages[idx].code)
-	app.applyLanguage()
 }
 
 // updateStatusText syncs the status label and connect button with the current
