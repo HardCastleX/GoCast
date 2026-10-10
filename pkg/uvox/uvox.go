@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"pycast/pkg/i18n"
 )
 
 const (
@@ -29,15 +31,6 @@ const (
 	MsgIcyPub     uint16 = 0x1103
 	MsgMP3Data    uint16 = 0x7000
 )
-
-// UvoxError represents a protocol or connection error suitable for display.
-type UvoxError struct {
-	Message string
-}
-
-func (e *UvoxError) Error() string {
-	return e.Message
-}
 
 func xteaBlock(v0, v1 uint32, k [4]uint32) (uint32, uint32) {
 	var s uint32 = 0
@@ -119,15 +112,15 @@ func NewUvoxSource(cfg Config) *UvoxSource {
 
 func (s *UvoxSource) friendlyError(reason, step string) error {
 	if strings.Contains(reason, "Stream In Use") {
-		return &UvoxError{Message: "Stream ocupado: detén el AutoDJ en tu panel"}
+		return i18n.NewError("uvox.stream_in_use", "")
 	}
 	if strings.Contains(reason, "Deny") {
-		return &UvoxError{Message: "Usuario, contraseña o Stream ID incorrectos"}
+		return i18n.NewError("uvox.denied", "")
 	}
 	if strings.Contains(reason, "Stream ID Error") {
-		return &UvoxError{Message: "Stream ID inválido"}
+		return i18n.NewError("uvox.invalid_sid", "")
 	}
-	return &UvoxError{Message: fmt.Sprintf("%s: %s", step, reason)}
+	return i18n.NewError("uvox.server_rejected", fmt.Sprintf("%s: %s", step, reason))
 }
 
 func (s *UvoxSource) send(msgType uint16, payload []byte) error {
@@ -146,10 +139,10 @@ func (s *UvoxSource) send(msgType uint16, payload []byte) error {
 func (s *UvoxSource) recv() (uint16, []byte, error) {
 	hdr := make([]byte, 6)
 	if _, err := io.ReadFull(s.conn, hdr); err != nil {
-		return 0, nil, &UvoxError{Message: "El servidor cerró la conexión"}
+		return 0, nil, i18n.NewError("uvox.server_closed", "")
 	}
 	if hdr[0] != 0x5A {
-		return 0, nil, &UvoxError{Message: "Respuesta no válida del servidor"}
+		return 0, nil, i18n.NewError("uvox.bad_response", "")
 	}
 
 	msgType := binary.BigEndian.Uint16(hdr[2:4])
@@ -157,7 +150,7 @@ func (s *UvoxSource) recv() (uint16, []byte, error) {
 
 	payload := make([]byte, ln+1)
 	if _, err := io.ReadFull(s.conn, payload); err != nil {
-		return 0, nil, &UvoxError{Message: "El servidor cerró la conexión"}
+		return 0, nil, i18n.NewError("uvox.server_closed", "")
 	}
 
 	content := payload[:ln]
@@ -168,7 +161,7 @@ func (s *UvoxSource) recv() (uint16, []byte, error) {
 func (s *UvoxSource) request(msgType uint16, payload, step string) ([]byte, error) {
 	pBytes := append([]byte(payload), 0x00)
 	if err := s.send(msgType, pBytes); err != nil {
-		return nil, &UvoxError{Message: fmt.Sprintf("Error enviando %s: %v", step, err)}
+		return nil, i18n.NewError("uvox.send_failed", fmt.Sprintf("%s: %v", step, err))
 	}
 
 	_, resp, err := s.recv()
@@ -191,7 +184,7 @@ func (s *UvoxSource) Connect(timeout time.Duration) error {
 	addr := net.JoinHostPort(s.cfg.Host, strconv.Itoa(s.cfg.Port))
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
-		return &UvoxError{Message: fmt.Sprintf("No se pudo conectar: %v", err)}
+		return i18n.NewError("uvox.connect_failed", err.Error())
 	}
 	s.conn = conn
 	s.closed = false
@@ -260,7 +253,7 @@ func (s *UvoxSource) Connect(timeout time.Duration) error {
 
 		// Step 8: Standby
 		if err := s.send(MsgStandby, nil); err != nil {
-			return &UvoxError{Message: fmt.Sprintf("Error enviando Standby: %v", err)}
+			return i18n.NewError("uvox.standby_failed", err.Error())
 		}
 
 		_, standbyResp, err := s.recv()
@@ -290,7 +283,7 @@ func (s *UvoxSource) SendAudio(mp3Data []byte) error {
 	defer s.mu.Unlock()
 
 	if s.conn == nil || s.closed {
-		return &UvoxError{Message: "Conexión cerrada"}
+		return i18n.NewError("uvox.conn_closed", "")
 	}
 
 	for i := 0; i < len(mp3Data); i += s.maxPayload {
@@ -300,7 +293,7 @@ func (s *UvoxSource) SendAudio(mp3Data []byte) error {
 		}
 		chunk := mp3Data[i:end]
 		if err := s.send(MsgMP3Data, chunk); err != nil {
-			return &UvoxError{Message: fmt.Sprintf("Error enviando audio: %v", err)}
+			return i18n.NewError("uvox.audio_failed", err.Error())
 		}
 	}
 	return nil

@@ -21,6 +21,7 @@ Los encoders clásicos que usan el protocolo SHOUTcast v1 (contraseña por el pu
 - **Gestión de presets**: guarda, carga y elimina configuraciones de servidores en `presets.json`.
 - **Estadísticas al aire**: cronómetro en vivo y contador de megabytes transmitidos.
 - **Manejo de errores claro**: detección de "Stream ocupado (AutoDJ)", credenciales incorrectas, SID inválido, etc.
+- **Interfaz multiidioma**: inglés (por defecto) y español, con cambio en vivo y preferencia guardada en `config.json`.
 
 ## Requisitos
 
@@ -62,9 +63,18 @@ go build -ldflags "-H windowsgui" -o PyCast.exe .
 - **Con `[Loopback]`**: Copia digital directa de lo que suena por esa salida (altavoces o audífonos). Es la opción estándar para transmitir música o el audio completo de tu PC.
 - **Sin `[Loopback]`**: Dispositivos de entrada físicos o virtuales (micrófonos, entradas de línea, cables virtuales VB-Audio).
 
+## Idiomas
+
+La interfaz está disponible en **inglés** (idioma por defecto) y **español**. Cámbialo con el selector **Language / Idioma** en la parte superior de la ventana: se aplica al instante y se guarda en `config.json`, así que se recuerda entre ejecuciones.
+
+Las traducciones viven en [pkg/i18n/](pkg/i18n/) (`en.json`, `es.json`) y se **embeben dentro del `.exe`** con `//go:embed`, por lo que el binario sigue siendo autónomo. El inglés es el idioma base: cualquier clave que falte en español cae automáticamente al inglés.
+
 ## Estructura del Proyecto en Go
 
-- [main.go](main.go) / [cmd/pycast/main.go](cmd/pycast/main.go) — Interfaz gráfica Win32 nativa (Walk) y bucle de streaming
+- [main.go](main.go) / [cmd/pycast/main.go](cmd/pycast/main.go) — Puntos de entrada (wrappers de `app.Run()`)
+- [pkg/app/](pkg/app/) — Interfaz gráfica Win32 nativa (Walk), estado de conexión, cambio de idioma y bucle de streaming
+- [pkg/i18n/](pkg/i18n/) — Motor de traducciones (inglés/español) embebidas en el binario
+- [pkg/config/](pkg/config/) — Preferencias del usuario persistidas en `config.json` (p. ej. el idioma)
 - [pkg/uvox/](pkg/uvox/) — Implementación completa del protocolo Ultravox 2.1 (framing, cifrado XTEA, handshake y envío MP3)
 - [pkg/mp3/](pkg/mp3/) — Codificador MP3 en Go puro para streaming en tiempo real (capas MDCT, subband, Huffman, reservoir)
 - [pkg/audio/](pkg/audio/) — Captura de audio WASAPI (loopback y micrófonos), remuestreo y cálculo de picos VU

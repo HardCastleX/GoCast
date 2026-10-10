@@ -11,6 +11,8 @@ import (
 
 	"github.com/go-ole/go-ole"
 	"github.com/moutend/go-wca/pkg/wca"
+
+	"pycast/pkg/i18n"
 )
 
 const (
@@ -195,7 +197,7 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 
 	if err := ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED); err != nil {
 		if onError != nil {
-			onError(fmt.Errorf("error inicializando COM: %w", err))
+			onError(i18n.NewError("audio.com_init", err.Error()))
 		}
 		return
 	}
@@ -204,7 +206,7 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 	var de *wca.IMMDeviceEnumerator
 	if err := wca.CoCreateInstance(wca.CLSID_MMDeviceEnumerator, 0, wca.CLSCTX_ALL, wca.IID_IMMDeviceEnumerator, &de); err != nil {
 		if onError != nil {
-			onError(fmt.Errorf("error creando MMDeviceEnumerator: %w", err))
+			onError(i18n.NewError("audio.enumerator", err.Error()))
 		}
 		return
 	}
@@ -213,7 +215,7 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 	var dc *wca.IMMDeviceCollection
 	if err := de.EnumAudioEndpoints(dev.DataFlow, wca.DEVICE_STATE_ACTIVE, &dc); err != nil {
 		if onError != nil {
-			onError(fmt.Errorf("error obteniendo dispositivos: %w", err))
+			onError(i18n.NewError("audio.enum_devices", err.Error()))
 		}
 		return
 	}
@@ -224,7 +226,7 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 		// Fallback to default endpoint
 		if err := de.GetDefaultAudioEndpoint(dev.DataFlow, wca.EConsole, &mmd); err != nil {
 			if onError != nil {
-				onError(fmt.Errorf("error abriendo dispositivo de audio: %w", err))
+				onError(i18n.NewError("audio.open_device", err.Error()))
 			}
 			return
 		}
@@ -234,7 +236,7 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 	var ac *wca.IAudioClient
 	if err := mmd.Activate(wca.IID_IAudioClient, wca.CLSCTX_ALL, nil, &ac); err != nil {
 		if onError != nil {
-			onError(fmt.Errorf("error activando cliente de audio: %w", err))
+			onError(i18n.NewError("audio.activate_client", err.Error()))
 		}
 		return
 	}
@@ -243,7 +245,7 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 	var wfx *wca.WAVEFORMATEX
 	if err := ac.GetMixFormat(&wfx); err != nil {
 		if onError != nil {
-			onError(fmt.Errorf("error obteniendo formato de audio: %w", err))
+			onError(i18n.NewError("audio.mix_format", err.Error()))
 		}
 		return
 	}
@@ -281,7 +283,7 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 	bufferDuration := wca.REFERENCE_TIME(200 * 10000)
 	if err := ac.Initialize(wca.AUDCLNT_SHAREMODE_SHARED, streamFlags, bufferDuration, 0, wfx, nil); err != nil {
 		if onError != nil {
-			onError(fmt.Errorf("error inicializando WASAPI: %w", err))
+			onError(i18n.NewError("audio.init_wasapi", err.Error()))
 		}
 		return
 	}
@@ -289,7 +291,7 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 	var acc *wca.IAudioCaptureClient
 	if err := ac.GetService(wca.IID_IAudioCaptureClient, &acc); err != nil {
 		if onError != nil {
-			onError(fmt.Errorf("error obteniendo AudioCaptureClient: %w", err))
+			onError(i18n.NewError("audio.capture_client", err.Error()))
 		}
 		return
 	}
@@ -297,7 +299,7 @@ func (c *Capturer) captureLoop(ctx context.Context, dev Device, onData Callback,
 
 	if err := ac.Start(); err != nil {
 		if onError != nil {
-			onError(fmt.Errorf("error iniciando captura de audio: %w", err))
+			onError(i18n.NewError("audio.start_capture", err.Error()))
 		}
 		return
 	}

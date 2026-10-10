@@ -1,0 +1,60 @@
+{
+  "app.title": "Shoutcast v2 Streamer (Go)",
+  "app.heading": "Shoutcast v2 Streamer",
+
+  "label.language": "Language:",
+  "label.audio_device": "Audio Device:",
+  "label.server_presets": "Server Presets:",
+  "label.host": "Hostname or IP:",
+  "label.port": "Port:",
+  "label.sid": "Stream ID (SID):",
+  "label.username": "DJ Username:",
+  "label.password": "Password:",
+  "label.bitrate": "Bitrate (kbps):",
+  "label.vu_meter": "Audio Level (VU Meter):",
+
+  "btn.save": "Save",
+  "btn.delete": "Delete",
+  "btn.start": "Start Broadcast",
+  "btn.stop": "Stop Broadcast",
+  "btn.cancel": "Cancel",
+
+  "preset.load": "Load Preset...",
+  "preset.clear": "Clear Fields",
+
+  "status.disconnected": "Disconnected",
+  "status.connecting": "Connecting...",
+  "status.live": "On Air (MP3 @ %d kbps)",
+  "status.connection_lost": "Connection lost",
+  "status.missing_fields": "Error: missing fields",
+  "status.error": "Error",
+  "status.capture_error": "Capture error",
+  "status.stats": "On air %02d:%02d:%02d  \u00b7  %.1f MB sent",
+
+  "device.list_error": "(Error listing devices)",
+
+  "dialog.save_preset.title": "Save Preset",
+  "dialog.save_preset.message": "Name for this preset:",
+
+  "uvox.stream_in_use": "Stream in use: stop the AutoDJ on your panel",
+  "uvox.denied": "Wrong username, password or Stream ID",
+  "uvox.invalid_sid": "Invalid Stream ID",
+  "uvox.server_rejected": "The server rejected the request",
+  "uvox.server_closed": "The server closed the connection",
+  "uvox.bad_response": "Invalid server response",
+  "uvox.send_failed": "Error sending data",
+  "uvox.connect_failed": "Could not connect",
+  "uvox.standby_failed": "Error sending standby",
+  "uvox.conn_closed": "Connection closed",
+  "uvox.audio_failed": "Error sending audio",
+
+  "audio.com_init": "Could not initialize COM",
+  "audio.enumerator": "Could not create the device enumerator",
+  "audio.enum_devices": "Could not list audio devices",
+  "audio.open_device": "Could not open the audio device",
+  "audio.activate_client": "Could not activate the audio client",
+  "audio.mix_format": "Could not read the audio format",
+  "audio.init_wasapi": "Could not initialize WASAPI",
+  "audio.capture_client": "Could not create the capture client",
+  "audio.start_capture": "Could not start audio capture"
+}

@@ -1,0 +1,60 @@
+{
+  "app.title": "Shoutcast v2 Streamer (Go)",
+  "app.heading": "Shoutcast v2 Streamer",
+
+  "label.language": "Idioma:",
+  "label.audio_device": "Dispositivo de Audio:",
+  "label.server_presets": "Presets de Servidor:",
+  "label.host": "Hostname or IP:",
+  "label.port": "Puerto:",
+  "label.sid": "Stream ID (SID):",
+  "label.username": "Usuario DJ:",
+  "label.password": "Contrase\u00f1a:",
+  "label.bitrate": "Bitrate (kbps):",
+  "label.vu_meter": "Nivel de Audio (VU Meter):",
+
+  "btn.save": "Guardar",
+  "btn.delete": "Borrar",
+  "btn.start": "Iniciar Broadcast",
+  "btn.stop": "Detener Broadcast",
+  "btn.cancel": "Cancelar",
+
+  "preset.load": "Cargar Preset...",
+  "preset.clear": "Limpiar Datos",
+
+  "status.disconnected": "Desconectado",
+  "status.connecting": "Conectando...",
+  "status.live": "En Vivo (MP3 @ %d kbps)",
+  "status.connection_lost": "Conexi\u00f3n perdida",
+  "status.missing_fields": "Error: Faltan campos",
+  "status.error": "Error",
+  "status.capture_error": "Error de captura",
+  "status.stats": "Al aire %02d:%02d:%02d  \u00b7  %.1f MB enviados",
+
+  "device.list_error": "(Error listando dispositivos)",
+
+  "dialog.save_preset.title": "Guardar Preset",
+  "dialog.save_preset.message": "Nombre para este preset:",
+
+  "uvox.stream_in_use": "Stream ocupado: det\u00e9n el AutoDJ en tu panel",
+  "uvox.denied": "Usuario, contrase\u00f1a o Stream ID incorrectos",
+  "uvox.invalid_sid": "Stream ID inv\u00e1lido",
+  "uvox.server_rejected": "El servidor rechaz\u00f3 la solicitud",
+  "uvox.server_closed": "El servidor cerr\u00f3 la conexi\u00f3n",
+  "uvox.bad_response": "Respuesta no v\u00e1lida del servidor",
+  "uvox.send_failed": "Error enviando datos",
+  "uvox.connect_failed": "No se pudo conectar",
+  "uvox.standby_failed": "Error enviando standby",
+  "uvox.conn_closed": "Conexi\u00f3n cerrada",
+  "uvox.audio_failed": "Error enviando audio",
+
+  "audio.com_init": "No se pudo inicializar COM",
+  "audio.enumerator": "No se pudo crear el enumerador de dispositivos",
+  "audio.enum_devices": "No se pudo listar los dispositivos de audio",
+  "audio.open_device": "No se pudo abrir el dispositivo de audio",
+  "audio.activate_client": "No se pudo activar el cliente de audio",
+  "audio.mix_format": "No se pudo obtener el formato de audio",
+  "audio.init_wasapi": "No se pudo inicializar WASAPI",
+  "audio.capture_client": "No se pudo obtener el cliente de captura",
+  "audio.start_capture": "No se pudo iniciar la captura de audio"
+}
