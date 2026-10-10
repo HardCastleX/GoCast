@@ -21,6 +21,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Generate manifest resource
+        run: go run github.com/akavel/rsrc@v0.10.2 -manifest PyCast.manifest -o rsrc.syso
+
       - name: Build (windows/amd64)
         run: go build -trimpath -ldflags "-s -w -H windowsgui" -o PyCast.exe .
 

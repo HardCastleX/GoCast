@@ -44,6 +44,12 @@ O para compilar como aplicación GUI sin ventana de terminal de fondo:
 go build -ldflags "-H windowsgui" -o PyCast.exe .
 ```
 
+> **Importante (manifiesto):** la GUI usa la librería Walk, que requiere Common Controls 6. El manifiesto [`PyCast.manifest`](PyCast.manifest) ya está embebido en `rsrc.syso`, por lo que el build funciona directamente. Si modificas el manifiesto, regenera el recurso antes de compilar:
+> ```powershell
+> go run github.com/akavel/rsrc@v0.10.2 -manifest PyCast.manifest -o rsrc.syso
+> ```
+> Sin el manifiesto, la ventana no se crea y el programa se cierra al instante (`TTM_ADDTOOL failed`).
+
 ## Uso
 
 1. Elige el **Dispositivo de Audio** en el menú desplegable.
